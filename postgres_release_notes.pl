@@ -43,13 +43,16 @@ my $content = fetch_page($index);
 my $total = 0;
 my $bigpage = "$cachedir/postgres_all_versions.html";
 open my $fh, '>', $bigpage or die qq{Could not open "$bigpage": $!\n};
-print {$fh} qq{<html>
+print {$fh} qq{<!DOCTYPE html>
+<html lang='en'>
 
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <style><!--
 span.gsm_v { color: #990000; font-family: monospace;}
 span.gsm_nowrap { white-space: nowrap;}
+table { border-collapse: collapse; border-spacing: 15px }
+table td { border: 1px solid #000; padding: 5px 7px 10px 7px; vertical-align: top }
 table td.eol { color: #111111; font-size: smaller; }
 span.eol { color: #dd0000 }
 --></style>
@@ -112,7 +115,7 @@ print qq{
 
 
 ## Table of Contents
-print "<table border=1>\n";
+print "<table>\n";
 my $COLS = 7;
 my $startrow=1;
 my $startcell=1;
@@ -164,6 +167,8 @@ for my $row (@pagelist) {
     ## Store EOL flag for later
     $version_is_eol{$version} = $major <= $EOL ? 1 : 0;
 
+    $startrow = 1 if ! defined $oldmajor;
+
     if (! defined $oldmajor or $oldmajor != $major and $major >= 6) {
         $oldmajor = $major;
         $startcell = 1;
@@ -184,7 +189,7 @@ for my $row (@pagelist) {
 
     if ($startcell) {
         ## Close old cell if needed
-        if ($major != $highversion) {
+        if ($major != $highversion and ! $startrow) {
             print "</td>\n";
         }
         my $showver = $major;
@@ -196,8 +201,9 @@ for my $row (@pagelist) {
         }
         if ($major eq '6.0') {
             $showver = '6.0<br>and earlier...';
+            $span = 2;
         }
-		printf " <td colspan=%s valign=top%s><b>Postgres %s%s</b>\n",
+		printf " <td colspan=%s %s><b>Postgres %s%s</b>\n",
             $span,
                 $major <= $EOL ? ' class="eol"' : '',
                     $showver,
@@ -247,9 +253,6 @@ for my $row (@pagelist) {
 	## Remove mailtos
 	$data =~ s{<a href=\s*"mailto:.+?">(.+?)</a>}{$1}gs;
 
-	## Put Postgres in the version title (no longer there!)
-	## $data =~ s{Release (\S+)}{Postgres version $1};
-
 	## Drop the headers down a level
 	$data =~ s{<h4}{<h5}sg;	$data =~ s{</h4>}{</h5>}sg;
 	$data =~ s{<h3}{<h4}sg;	$data =~ s{</h3>}{</h4>}sg;
@@ -260,7 +263,7 @@ for my $row (@pagelist) {
 	$data =~ s{>E\.[\d+\.]+\s*}{>}gsm;
 
 	## Add a header for quick jumping
-	print qq{<a name="version_$version"></a>\n};
+	print qq{<a id="version_$version"></a>\n};
 
 	## Redirect internal version links
 	## <a href="release-9-3-5.html">Section E.4</a>
@@ -281,6 +284,28 @@ for my $row (@pagelist) {
 
 	## Put spaces before some parens
 	$data =~ s{(...\w)\(([A-Z]...)}{$1 ($2}g;
+
+    ## Replace acronym with abbr
+    $data =~ s{<acronym .+?>}{<abbr>}g;
+    $data =~ s{</acronym>}{</abbr>}g;
+
+    ## Strip final </div> if it exists
+    $data =~ s{</div>\s*$}{};
+
+    ## Make the list of names a simple list, not a table!
+    #<table border="0" summary="Simple list" class="simplelist">
+    #  <tr>
+    #    <td>Abhijit Menon-Sen</td>
+    #  </tr>
+
+    $data =~ s{<table [^>]+class="simplelist">(.+?)</table>}{
+        my $inside = $1;
+        my $list = "<ul>\n";
+        while ($inside =~ m{<td>(.+?)</td>}g) {
+            $list .= "<li>$1\n";
+        }
+        "$list</ul>\n";
+    }sex;
 
 	## Expand some names
 my $namelist = q{
