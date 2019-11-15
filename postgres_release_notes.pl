@@ -261,7 +261,6 @@ for my $row (@pagelist) {
     ## h5 is just too small
 	$data =~ s{<h5}{<h4}sg;	$data =~ s{</h5>}{</h4>}sg;
 
-
 	## Remove all the not important "E-dot" stuff
 	$data =~ s{>E\.[\d+\.]+\s*}{>}gsm;
 
@@ -290,6 +289,10 @@ for my $row (@pagelist) {
 
     ## Strip final </div> if it exists
     $data =~ s{</div>\s*$}{};
+
+    ## Simplify lists
+    $data =~ s{<ul .+?>}{<ul>}gsm;
+    $data =~ s{<li .+?>}{<li>}gsm;
 
     ## Make the list of names a simple list, not a table!
     $data =~ s{<table [^>]+class="simplelist">(.+?)</table>}{
