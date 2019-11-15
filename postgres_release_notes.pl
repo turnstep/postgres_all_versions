@@ -6,7 +6,7 @@ use LWP::UserAgent;
 use Data::Dumper;
 use Getopt::Long qw/ GetOptions /;
 
-our $VERSION = '1.16';
+our $VERSION = '1.17';
 
 my $USAGE = "$0 [--noindexcache] [--nocache] [--verbose]";
 
@@ -30,6 +30,7 @@ if ($opt{help}) {
 my $verbose = $opt{verbose} || 0;
 my $cachedir = '/tmp/cache';
 my $index = 'http://www.postgresql.org/docs/current/static/release.html';
+$index = 'https://www.postgresql.org/docs/release/';
 my $baseurl = 'http://www.postgresql.org/docs/current/static';
 
 my $pagecache = {};
@@ -64,22 +65,15 @@ my %bullet;
 ## When it was released
 my %versiondate;
 ## First run to gather version information
-while ($content =~ m{a href="(release.*?)">(.+?)</a>}gs) {
-	my ($page,$title) = ($1,$2);
-	$title =~ s/\s+/ /;
-	my $version = '?';
-	if ($title =~ s/.*(Release)\s+([\d\.]+)$/$1 $2/) {
-		$version = $2;
-	}
-	else {
-		die "No release found for page ($page) and title ($title)\n";
-	}
-	#print "GOT $page and $title\n";
-	(my $pageurl = $index) =~ s/release.html/$page/;
+
+while ($content =~ m{a href="/docs/release/(\d[\d\.]+?)/"}gs) {
+    my $version = $1;
+    $verbose and warn "Found version $version\n";
+    my $pageurl = "$index$version/";
 	my $pageinfo = fetch_page($pageurl);
 	$total++;
 
-	push @pagelist => [$page, $title, $pageurl, $version, $pageinfo];
+	push @pagelist => [$pageurl, $version, $pageinfo];
 
 	while ($pageinfo =~ m{<li>\s*<p>(.+?)</li>}sg) {
 		my $blurb = $1;
@@ -100,7 +94,7 @@ while ($content =~ m{a href="(release.*?)">(.+?)</a>}gs) {
         $founddate = 1;
     }
     if (!$founddate) {
-        die "No date found for version $title at page $page!\n";
+        die "No date found for version $version at page $pageurl!\n";
     }
 }
 
@@ -130,18 +124,14 @@ my $seeneol = 0;
 my $oldfirstnum = 10;
 my %version_is_eol;
 for my $row (@pagelist) {
-	my ($page,$title,$url,$version,$data) = @$row;
+	my ($url,$version,$data) = @$row;
     my $major = 0;
     my $firstnum = 0;
-    ## Version is x.y or x.y.z or x or x.z
-    if ($version =~ /^\d\d+$/) { ## Major version 10 or higher
-        $major = $firstnum = $version;
-        $revision = 0;
-    }
-    elsif ($version =~ /^(\d\d+)\.(\d+)$/) { ## Major version 10 or higher, plus revision
+    $verbose > 2 and warn "Scanning version: $version\n";
+    ## Version is x.y.z or x.z
+    if ($version =~ /^(\d\d+)\.(\d+)$/) { ## Version 10 or higher: format is x.z
         $major = $firstnum = $1;
         $revision = $2;
-        $revision < 1 and die "Why is revision 0 of $version showing??";
     }
     elsif ($version =~ /^(\d)\.\d+$/) { ## Major version < 10
         $firstnum = $1;
@@ -152,7 +142,6 @@ for my $row (@pagelist) {
         $major = $1;
         $firstnum = $2;
         $revision = $3;
-        $revision < 1 and die "Why is revision 0 of $version showing??";
     }
     else {
         die "Could not parse version '$version'";
@@ -231,6 +220,7 @@ for my $row (@pagelist) {
 				$versiondate{$version} =~ /never/ ? "<em>never released!</em>" : "$versiondate{$version}";
 	$oldmajor = $major;
 }
+
 print "</table>";
 print STDOUT "Highest version: $highversion (revision $highrevision)\n";
 
@@ -241,7 +231,7 @@ my %fail;
 my $totalfail=0;
 
 for my $row (@pagelist) {
-	my ($page,$title,$url,$version,$data) = @$row;
+	my ($url,$version,$data) = @$row;
 
     ## Old style:
  	$data =~ s{.*?(<div class="SECT1")}{$1}s;
@@ -502,6 +492,9 @@ sub fetch_page {
 	my $data = $res->content;
 	print {$fh} $data;
 	close $fh;
+
+    $pagecache->{$page} = $file;
+
 	return $data;
 
 } ## end of fetch_page
