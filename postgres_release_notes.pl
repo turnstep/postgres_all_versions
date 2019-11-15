@@ -113,35 +113,39 @@ print qq{
 
 ## Table of Contents
 print "<table border=1>\n";
-my $COLS = 6;
+my $COLS = 7;
 my $startrow=1;
 my $startcell=1;
-my $oldmajor = 0;
+my $oldmajor;
 my $highversion = 1.0;
 my $highrevision = 0;
 my $revision = 0;
 my $seeneol = 0;
-my $oldfirstnum = 10;
 my %version_is_eol;
+my $current_column = 0;
+
 for my $row (@pagelist) {
 	my ($url,$version,$data) = @$row;
     my $major = 0;
-    my $firstnum = 0;
+
     $verbose > 2 and warn "Scanning version: $version\n";
-    ## Version is x.y.z or x.z
-    if ($version =~ /^(\d\d+)\.(\d+)$/) { ## Version 10 or higher: format is x.z
-        $major = $firstnum = $1;
+
+    ## Three formats we support, from newest to oldest
+
+    ## 10 and up: format is X.Z
+    if ($version =~ /^(\d\d+)\.(\d+)$/) {
+        $major = $1;
         $revision = $2;
     }
-    elsif ($version =~ /^(\d)\.\d+$/) { ## Major version < 10
-        $firstnum = $1;
-        $major = $version;
-        $revision = 0;
-    }
-    elsif ($version =~ /^((\d)\.\d+)\.(\d+)$/) { ## Major version < 10, plus revision
+    ## 6.0.0 to 9.4.Z: X.Y.Z
+    elsif ($version =~ /^(\d\.\d+)\.(\d+)$/) {
         $major = $1;
-        $firstnum = $2;
-        $revision = $3;
+        $revision = 2;
+    }
+    ## Ancient stuff: X.Y where X <= 1
+    elsif ($version =~ /^([01]\.\d\d?)$/) {
+        $major = $1;
+        $revision = 0;
     }
     else {
         die "Could not parse version '$version'";
@@ -160,21 +164,14 @@ for my $row (@pagelist) {
     ## Store EOL flag for later
     $version_is_eol{$version} = $major <= $EOL ? 1 : 0;
 
-    ## We start a new row for EOL, and for first-number change
-    if (!$seeneol and $major <= $EOL) {
-        $seeneol = 1;
-        $startrow = 1;
-        $oldfirstnum = $firstnum;
-    }
-    elsif ($seeneol and $oldfirstnum != $firstnum and $firstnum >= 6) {
-        $oldfirstnum = $firstnum;
-        $startrow = 1;
-    }
-
-    ## We start a new row if the major has changed, except for super-old stuff
-    if ($startrow or $oldmajor != $major and $major >= 6) {
+    if (! defined $oldmajor or $oldmajor != $major and $major >= 6) {
         $oldmajor = $major;
         $startcell = 1;
+        if (++$current_column > $COLS) {
+            $startrow = 1;
+            $current_column = 1;
+        }
+        $verbose > 2 and warn "Switched to version $version, startrow is $startrow, current cols is $current_column\n";
     }
 
     if ($startrow) {
@@ -195,20 +192,14 @@ for my $row (@pagelist) {
         ## Last one before EOL
         if ($major eq $EOLPLUS) {
             $span = 2;
-        }
-        elsif (9.0 == $major) {
-            $span = 4;
-        }
-        elsif (8.0 == $major or 7.0 == $major) {
-            $span = 2;
+            $current_column++;
         }
         if ($major eq '6.0') {
             $showver = '6.0<br>and earlier...';
-            $span = 3;
         }
 		printf " <td colspan=%s valign=top%s><b>Postgres %s%s</b>\n",
             $span,
-                $seeneol ? ' class="eol"' : '',
+                $major <= $EOL ? ' class="eol"' : '',
                     $showver,
                         $major <= $EOL ? ' <br><span class="eol">(end of life)</span>' : '';
     }
