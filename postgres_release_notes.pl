@@ -254,10 +254,13 @@ for my $row (@pagelist) {
 	$data =~ s{<a href=\s*"mailto:.+?">(.+?)</a>}{$1}gs;
 
 	## Drop the headers down a level
-	$data =~ s{<h4}{<h5}sg;	$data =~ s{</h4>}{</h5>}sg;
 	$data =~ s{<h3}{<h4}sg;	$data =~ s{</h3>}{</h4>}sg;
 	$data =~ s{<h2}{<h3}sg;	$data =~ s{</h2>}{</h3>}sg;
 	$data =~ s{<h1}{<h2}sg;	$data =~ s{</h1>}{</h2>}sg;
+
+    ## h5 is just too small
+	$data =~ s{<h5}{<h4}sg;	$data =~ s{</h5>}{</h4>}sg;
+
 
 	## Remove all the not important "E-dot" stuff
 	$data =~ s{>E\.[\d+\.]+\s*}{>}gsm;
@@ -285,19 +288,10 @@ for my $row (@pagelist) {
 	## Put spaces before some parens
 	$data =~ s{(...\w)\(([A-Z]...)}{$1 ($2}g;
 
-    ## Replace acronym with abbr
-    $data =~ s{<acronym .+?>}{<abbr>}g;
-    $data =~ s{</acronym>}{</abbr>}g;
-
     ## Strip final </div> if it exists
     $data =~ s{</div>\s*$}{};
 
     ## Make the list of names a simple list, not a table!
-    #<table border="0" summary="Simple list" class="simplelist">
-    #  <tr>
-    #    <td>Abhijit Menon-Sen</td>
-    #  </tr>
-
     $data =~ s{<table [^>]+class="simplelist">(.+?)</table>}{
         my $inside = $1;
         my $list = "<ul>\n";
@@ -306,6 +300,17 @@ for my $row (@pagelist) {
         }
         "$list</ul>\n";
     }sex;
+
+    ## Remove "name" atribute if id already exists
+    $data =~ s{ name=".+?" id=}{ id=}g;
+
+    ## Replace acronym with abbr
+    $data =~ s{<acronym .+?>}{<abbr>}gsm;
+    $data =~ s{</acronym>}{</abbr>}g;
+
+    ## Replace tt with kbd
+    $data =~ s{<tt class=.+?">}{<kbd>}gsm;
+    $data =~ s{</tt>}{</kbd>}g;
 
 	## Expand some names
 my $namelist = q{
